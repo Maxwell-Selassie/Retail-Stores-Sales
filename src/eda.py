@@ -54,15 +54,15 @@ def numeric_columns(df : pd.DataFrame):
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     for i, col in enumerate(numeric_cols,1):
         log.info(f'{i}. {col:<15} | Min : {df[col].min():<3} | Max : {df[col].max()}') 
-        return numeric_cols
+    return numeric_cols
 
 # ---------categorical columns - number of unique values each category contains
 def categorical_columns(df : pd.DataFrame):
     categorical_cols = df.select_dtypes(exclude=[np.number]).columns
     for i, col in enumerate(categorical_cols,1):
         uniques = df[col].unique()
-        log.info(f'{i}. {col} | Unique : {df[col].nunique()} | Examples : {uniques[:4]}')
-        return categorical_cols
+        log.info(f'{i}. {col:<20} | Unique : {df[col].nunique():<3} | Examples : {uniques[:4]}')
+    return categorical_cols
     
 # -----------detect outliers using the IQR method------------
 def outliers_detection(df: pd.DataFrame, col: str):
@@ -74,16 +74,11 @@ def outliers_detection(df: pd.DataFrame, col: str):
     outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)]
     return lower_bound, upper_bound, outliers
 
-# ----------outlier summary - return lower range, upper range and number of outliers
+# ----------outlier summary - return lower range, upper range and number of outliers------
 def outlier_summary(df: pd.DataFrame, numeric_cols : list[str]):
-    for col in numeric_cols:
+    for i, col in enumerate(numeric_cols,1):
         lower, upper, outlier = outliers_detection(df, col)
-        outlier_df = pd.DataFrame({
-            'Lower_bound' :lower,
-            'Upper_bound' : upper,
-            'Outliers' : len(outlier)
-        })
-    return outlier_df
+        log.info(f'{i}. {col:<15} | Number of outliers : {len(outlier):<3} | Range : ({lower} - {upper})')
 
 # ----------- missing values - missing percentages -------------
 def missing_values(df : pd.DataFrame):
@@ -101,14 +96,14 @@ def missing_values(df : pd.DataFrame):
 # ------------plot missing values -----------
 def plt_missing_values(df : pd.DataFrame):
     df['missing_values'].plot(kind='barh',figsize=(12,7),title='Distribution of missing values',
-            xlabel='Frequency')
+            xlabel='Frequency',color='indigo')
     plt.savefig(plot_dir / 'missing_values.png', dpi=300)
     log.info('Image successfully saved!')
     plt.show()
 
 # -----------check for duplicates in the dataset--------------
 def duplicate_data(df : pd.DataFrame):
-    duplicates = df[df.duplicated]
+    duplicates = df[df.duplicated()]
     log.info(f'Number of duplicates : {len(duplicates)}')
     if len(duplicates) == 0:
         log.info('No duplicates found')
@@ -128,6 +123,7 @@ def run_eda(filename: str = 'data/retail_stores_sales.csv'):
     cat_cols = categorical_columns(df)
     duplicates = duplicate_data(df)
     outliers = outlier_summary(df, num_cols)
+    correlation = correlation_in_data(df)
 
     return {
         'data' : df,
@@ -137,7 +133,8 @@ def run_eda(filename: str = 'data/retail_stores_sales.csv'):
         'num_cols' : num_cols,
         'cat_cols' : cat_cols,
         'duplicates' : duplicates,
-        'outliers' : outliers
+        'outliers' : outliers,
+        'correlation' : correlation
     }
 
 if __name__ == '__main__':
