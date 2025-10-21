@@ -41,12 +41,12 @@ def summary_overview(df : pd.DataFrame):
     '''A short, descriptive summary of the dataset'''
     log.info(f'Number of observations : {df.shape[0]}')
     log.info(f'Number of features : {df.shape[1]}')
-    describe = df.describe(include='all').T
-    log.info(f'{describe}')
+    describe = df.describe(include='all').T[['min','max','mean','std']]
+    log.info(f'\n{describe}')
     return {
         'Observations' : df.shape[0],
         'Features' : df.shape[1],
-        'Description' : df.describe(include='all')
+        'Description' : describe
     }
 
 # -----------numerical columns - their minimum and maximum average values-----------
@@ -90,16 +90,19 @@ def missing_values(df : pd.DataFrame):
         'missing_values' : missing,
         'missing_pct' : missing_pct.round(2)
     })
-    log.info(f'{missing_df}')
+    log.info(f'Dataset shape: {df.shape}, Missing columns: {missing_df.index.tolist()}')
     return missing_df
 
 # ------------plot missing values -----------
-def plt_missing_values(df : pd.DataFrame):
-    df['missing_values'].plot(kind='barh',figsize=(12,7),title='Distribution of missing values',
-            xlabel='Frequency',color='indigo')
-    plt.savefig(plot_dir / 'missing_values.png', dpi=300)
-    log.info('Image successfully saved!')
-    plt.show()
+def plt_missing_values(missing_summary : pd.DataFrame):
+    if missing_summary['missing_values'].sum() == 0:
+        log.info(f'No missing values detected. Skipping plots')
+    else:
+        missing_summary['missing_values'].plot(kind='barh',figsize=(12,7),title='Distribution of missing values',
+                xlabel='Frequency',color='indigo')
+        plt.savefig(plot_dir / 'missing_values.png', dpi=300)
+        log.info('Image successfully saved!')
+        plt.show()
 
 # -----------check for duplicates in the dataset--------------
 def duplicate_data(df : pd.DataFrame):
@@ -110,10 +113,21 @@ def duplicate_data(df : pd.DataFrame):
     else:
         return duplicates
     
-def correlation_in_data(df : pd.DataFrame):
-    return df.corr(numeric_only=True, method='spearman')
-    
+# ---------correlation matrix ------------
+def plt_heatmap(df : pd.DataFrame):
+    plt.figure(figsize=(12,7))
+    corr = df.corr(numeric_only=True, method='spearman')
+    sns.heatmap(data=corr, fmt='.2f', annot=True, cmap='Blues',cbar=False)
+    plt.title('Correlation HeatMap')
+    plt.savefig(plot_dir / 'heatmap.png', dpi = 300)
+    plt.tight_layout()
+    plt.show()
+    log.info(f'Image successfully saved!')
 
+def plt_histogram(df : pd.dataframe):
+    plt.figure(figsize=(12,7))
+
+# ------main-----
 def run_eda(filename: str = 'data/retail_stores_sales.csv'):
     df = load_file()
     overview = summary_overview(df)
@@ -123,7 +137,7 @@ def run_eda(filename: str = 'data/retail_stores_sales.csv'):
     cat_cols = categorical_columns(df)
     duplicates = duplicate_data(df)
     outliers = outlier_summary(df, num_cols)
-    correlation = correlation_in_data(df)
+    correlation = plt_heatmap(df)
 
     return {
         'data' : df,
