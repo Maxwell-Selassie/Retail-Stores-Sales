@@ -124,6 +124,7 @@ def plt_heatmap(df : pd.DataFrame):
     plt.show()
     log.info(f'Image successfully saved!')
 
+# ----------plot numerical historgrams---------------
 def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]):
     plt.figure(figsize=(12,7))
     for col in numeric_cols:
@@ -131,9 +132,20 @@ def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]):
         plt.title(f'Distribution of {col}',fontsize=14,fontweight='bold')
         plt.ylabel('Frequency',fontsize=10,fontweight='bold')
         plt.tight_layout()
-        plt.grid(alpha=0.3)
+        plt.grid(True,alpha=0.3)
         plt.savefig(f'{plot_dir}/plt_{col}.png',dpi=300)
         log.info(f'{col} histogram successfully plotted and saved')
+        plt.show()
+
+# -----------plot boxplots---------
+def plt_boxplots(df : pd.DataFrame, numeric_cols : list[str]):
+    plt.figure(figsize=(12,7))
+    for col in numeric_cols:
+        sns.boxplot(data=df,y=col,linecolor='blue',color='indigo',alpha=0.8)
+        plt.title(f'-Boxplots - {col}')
+        plt.tight_layout()
+        plt.grid(True,alpha=0.3)
+        plt.savefig(f'{plot_dir}/boxplot_{col}.png',dpi=300)
         plt.show()
 
 # ------main-----
@@ -148,6 +160,7 @@ def run_eda(filename: str = 'data/retail_stores_sales.csv'):
     outliers = outlier_summary(df, num_cols)
     correlation = plt_heatmap(df)
     histogram = plt_histogram(df, num_cols)
+    boxplot = plt_boxplots(df,num_cols)
 
     return {
         'data' : df,
@@ -159,7 +172,8 @@ def run_eda(filename: str = 'data/retail_stores_sales.csv'):
         'duplicates' : duplicates,
         'outliers' : outliers,
         'correlation' : correlation,
-        'histogram' : histogram
+        'histogram' : histogram,
+        'boxplot' : boxplot
     }
 
 if __name__ == '__main__':
