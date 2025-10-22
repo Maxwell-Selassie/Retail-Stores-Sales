@@ -122,7 +122,7 @@ def plt_heatmap(df : pd.DataFrame):
     plt.savefig(plot_dir / 'heatmap.png', dpi = 300)
     plt.tight_layout()
     plt.show()
-    log.info(f'Image successfully saved!')
+    log.info(f'Correlation heatmap successfully plotted and saved!')
 
 # ----------plot numerical historgrams---------------
 def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]):
@@ -146,6 +146,7 @@ def plt_boxplots(df : pd.DataFrame, numeric_cols : list[str]):
         plt.tight_layout()
         plt.grid(True,alpha=0.3)
         plt.savefig(f'{plot_dir}/boxplot_{col}.png',dpi=300)
+        log.info(f'{col} boxplot successfully plotted and saved!')
         plt.show()
 
 # ------main-----
