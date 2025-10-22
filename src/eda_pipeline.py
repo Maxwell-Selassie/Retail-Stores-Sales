@@ -1,4 +1,7 @@
 # import libraries
+from __future__ import annotations
+
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,6 +12,7 @@ from dataclasses import dataclass
 import json
 from typing import Dict,Any,List,Optional
 import warnings
+import argparse
 warnings.filterwarnings('ignore')
 
 # logging and filepaths setup
@@ -32,6 +36,20 @@ logging.basicConfig(filename=log_path,
 # --------Types/dataclass-----------
 @dataclass
 class EDAResults:
+    """Container for EDA results
+    
+    Attributes:
+        data: The original DataFrame
+        overview: Dictionary with dataset statistics
+        missing_summary: DataFrame showing missing value analysis
+        numeric_columns: List of numeric column names
+        categorical_columns: List of categorical column names
+        duplicates: DataFrame of duplicate rows (None if no duplicates)
+        outlier_summary: Dictionary with outlier statistics per column
+        cardinality_analysis: Dictionary of high-cardinality columns
+        constant_features: List of quasi-constant feature names
+        sanity_checks: Dictionary of business logic validation results
+    """
     data : pd.DataFrame
     overview : Dict[str,Any]
     missing_summary : pd.DataFrame
@@ -39,23 +57,45 @@ class EDAResults:
     categorical_columns : List[str]
     duplicates : Optional[pd.DataFrame]
     outlier_summary : Dict[str,Dict[str,Any]]
+    cardinality_analysis : Dict[str,int]
+    constant_features : List[str]
+    sanity_checks : Dict[str,Any]
 
 # ------------Utility - load dataset from a csv file-------------
 def load_file(filename : str = 'data/retail_store_sales.csv') -> pd.DataFrame:
-    '''Loads the csv file into the python environment as a pandas environment'''
+    """Loads the csv file into the python environment as a pandas DataFrame
+    
+    Args:
+        filename: Path to the CSV file
+        
+    Returns:
+        pd.DataFrame: Loaded data
+        
+    Raises:
+        FileNotFoundError: If the file doesn't exist
+    """
     try:
         df = pd.read_csv(filename)
-        log.info(f'Data successfully loaded from {filename} file')
+        log.info(f'Data successfully loaded from {filename} | Shape : {df.shape}')
         return df
     except FileNotFoundError:
         log.error(f'File not found! Check filepath and try again!')
         raise
+    except Exception as e:
+        log.error(f'Error loading file : {e}')
 
 # --------------Validation---------------
 def validation_schema(df: pd.DataFrame, required_columns : Optional[List[str]]) -> None:
     '''Check presence of required columns and basic type expectations
-    Raises a valueError if required columns are missing'''
+        Args:
+        df: DataFrame to validate
+        required_columns: List of column names that must be present
+        
+    Raises:
+        ValueError: If required columns are missing
+    '''
     if required_columns is None:
+        log.info(f'No schema validation required')
         return 
     missing_cols = [c for c in required_columns if c not in df.columns]
     if missing_cols:
@@ -66,36 +106,71 @@ def validation_schema(df: pd.DataFrame, required_columns : Optional[List[str]]) 
 
 
 # ------a short descriptive statistical summary of the dataset----------  
-def summary_overview(df : pd.DataFrame):
-    '''A short, descriptive summary of the dataset'''
+def summary_overview(df : pd.DataFrame) -> Dict[str,Any]:
+    '''A short, descriptive summary of the dataset
+    Args:
+        df: DataFrame to summarize
+        
+    Returns:
+        Dictionary containing dataset statistics'''
     describe = df.describe().T[['min','max','mean','std']].round(4)
     overview = {
         'Observations' : df.shape[0],
         'Features' : df.shape[1],
+        'memory_usage_MB' : round(df.memory_usage(deep=True).sum() / 1024 ** 2, 2),
         'Description' : describe.to_dict(orient='index')
     }
     observations = overview['Observations']
     features = overview['Features']
-    log.info(f'Overview : observations = {observations} | Features = {features}')
+    memory_usage = overview['memory_usage_MB']
+    log.info(f'Overview : observations = {observations} | Features = {features} | Memory = {memory_usage}')
     return overview
 
 # -----------numerical columns - their minimum and maximum average values-----------
-def numeric_columns(df : pd.DataFrame):
+def numeric_columns(df : pd.DataFrame) -> List[str]:
+    """Identify and log statistics for numeric columns
+    
+    Args:
+        df: DataFrame to analyze
+        
+    Returns:
+        List of numeric column names
+    """
     numeric_cols = df.select_dtypes(include=[np.number]).columns
+    log.info(f'Found {len(numeric_cols)} numeric columns')
     for i, col in enumerate(numeric_cols,1):
-        log.info(f'{i}. {col:<15} | Min : {df[col].min():<3} | Max : {df[col].max()}') 
+        log.info(f'{i}. {col:<15} | Min : {df[col].min():<3} | Max : {df[col].max():<3} | Mean : {df[col].mean():.2f}') 
     return numeric_cols
 
 # ---------categorical columns - number of unique values each category contains
 def categorical_columns(df : pd.DataFrame):
+    """Identify and log statistics for categorical columns
+    
+    Args:
+        df: DataFrame to analyze
+        
+    Returns:
+        List of categorical column names
+    """
     categorical_cols = df.select_dtypes(exclude=[np.number]).columns
+    log.info(f'Found {len(categorical_cols)} categorical columns')
     for i, col in enumerate(categorical_cols,1):
         uniques = df[col].unique()
-        log.info(f'{i}. {col:<20} | Unique : {df[col].nunique():<3} | Examples : {uniques[:4]}')
+        mode_value = df[col].mode()[0] if len(df[col].mode()) > 0 else 'N/A'
+        log.info(f'{i}. {col:<20} | Unique : {df[col].nunique():<3} | Mode : {mode_value} | Examples : {uniques[:4]}')
     return categorical_cols
     
 # -----------detect outliers using the IQR method------------
-def outliers_detection(df: pd.DataFrame, col: str):
+def outliers_detection(df: pd.DataFrame, col: str) -> tuple:
+    """Detect outliers using the Interquartile Range (IQR) method
+    
+    Args:
+        df: DataFrame containing the column
+        col: Column name to check for outliers
+        
+    Returns:
+        Tuple of (lower_bound, upper_bound, outliers_dataframe)
+    """
     Q1 = df[col].quantile(0.25)
     Q3 = df[col].quantile(0.75)
     IQR = Q3 - Q1
@@ -106,15 +181,41 @@ def outliers_detection(df: pd.DataFrame, col: str):
 
 # ----------outlier summary - return lower range, upper range and number of outliers------
 def outlier_summary(df: pd.DataFrame, numeric_cols : list[str]):
+    """Generate comprehensive outlier analysis for numeric columns
+    
+    Args:
+        df: DataFrame to analyze
+        numeric_cols: List of numeric column names
+        
+    Returns:
+        Dictionary with outlier statistics per column
+    """
+    summary = {}
     for i, col in enumerate(numeric_cols,1):
         lower, upper, outlier = outliers_detection(df, col)
+        outlier_pct = round(len(outlier) / len(df) * 100, 2) if len(df) > 0 else 0
+        summary[col] = {
+            'outlier_count' : len(outlier),
+            'outlier_pct' : outlier_pct,
+            'lower_bound' : round(lower, 2),
+            'upper_bound' : round(upper, 2)
+        }
         log.info(f'{i}. {col:<15} | Number of outliers : {len(outlier):<3} | Range : ({lower} - {upper})')
+    return summary
 
 # ----------- missing values - missing percentages -------------
-def missing_values(df : pd.DataFrame):
-    '''Analyze the missing values in the dataset'''
+def missing_values(df : pd.DataFrame) -> pd.DataFrame:
+    '''Analyze the missing values in the dataset
+        Args:
+        df: DataFrame to analyze
+        
+    Returns:
+        DataFrame with missing value statistics'''
     missing = df.isnull().sum()
     missing = missing[missing > 0].sort_values(ascending=False)
+    if len(missing) == 0:
+        log.info('No missing values detected in dataset')
+        return pd.DataFrame(columns=['missing_values','missing_pct'])
     missing_pct = (missing / len(df)) * 100
     missing_df = pd.DataFrame({
         'missing_values' : missing,
@@ -124,20 +225,37 @@ def missing_values(df : pd.DataFrame):
     return missing_df
 
 # ------------plot missing values -----------
-def plt_missing_values(missing_summary : pd.DataFrame):
+def plt_missing_values(missing_summary : pd.DataFrame) -> None:
+    """Visualize missing value distribution
+    
+    Args:
+        missing_summary: DataFrame from missing_values() function
+    """
     if missing_summary['missing_values'].sum() == 0:
         log.info(f'No missing values detected. Skipping plots')
         return None
-    else:
+    try:
         missing_summary['missing_values'].plot(kind='barh',figsize=(12,7),title='Distribution of missing values',
                 xlabel='Frequency',color='indigo')
         output_path = f'{plot_dir}_missing_values.png'
-        plt.savefig(output_path, dpi=300)
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
         log.info(f'Missing values plot successfully plotted and saved to {output_path}')
         plt.show()
+        plt.close()
+    except Exception as e:
+        log.error(f'Error creating missing value plots : {e}')
+        plt.close()
 
 # -----------check for duplicates in the dataset--------------
-def duplicate_data(df : pd.DataFrame):
+def duplicate_data(df : pd.DataFrame) -> Optional[pd.DataFrame]:
+    """Check for duplicate rows in the dataset
+    
+    Args:
+        df: DataFrame to check
+        
+    Returns:
+        DataFrame of duplicate rows or None if no duplicates
+    """
     duplicates = df[df.duplicated()]
     log.info(f'Number of duplicates : {len(duplicates)}')
     if len(duplicates) == 0:
@@ -147,47 +265,80 @@ def duplicate_data(df : pd.DataFrame):
         return duplicates
     
 # ---------correlation matrix ------------
-def plt_heatmap(df : pd.DataFrame):
+def plt_heatmap(df : pd.DataFrame) -> None:
+    """Generate and save correlation heatmap
+    
+    Args:
+        df: DataFrame to analyze
+    """
     corr = df.corr(numeric_only=True, method='spearman')
+
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    if numeric_columns.shape[1] < 2:
+        log.info('Less than 2 numeric columns. Skipping heatmap')
+
     if corr.isnull().all().all():
         log.info(f'Correlation Matrix is empty or contains only NaNs. Skipping heatmap.')
         return None
-    
-    plt.figure(figsize=(12,7))
-    sns.heatmap(data=corr, fmt='.2f', annot=True, cmap='Blues',cbar=False)
-    plt.title('Spearman Correlation HeatMap')
-    plt.savefig(plot_dir / 'heatmap.png', dpi = 300)
-    plt.tight_layout()
-    plt.show()
-    log.info(f'Correlation heatmap successfully plotted and saved!')
-    plt.close()
+    try:
+        plt.figure(figsize=(12,7))
+        sns.heatmap(data=corr, fmt='.2f', annot=True, cmap='Blues',cbar=False)
+        plt.title('Spearman Correlation HeatMap')
+        plt.savefig(plot_dir / 'heatmap.png', dpi = 300)
+        plt.tight_layout()
+        plt.show()
+        log.info(f'Correlation heatmap successfully plotted and saved!')
+        plt.close()
+    except Exception as e:
+        log.error(f'Error creating heatmap: {e}')
+        plt.close()
 
 # ----------plot numerical historgrams---------------
-def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]):
-    plt.figure(figsize=(12,7))
+def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]) -> None:
+    """Generate histograms for all numeric columns
+    
+    Args:
+        df: DataFrame to plot
+        numeric_cols: List of numeric column names
+    """
     for col in numeric_cols:
-        sns.histplot(data=df, x=col, kde=True, color='indigo', alpha=0.7)
-        plt.title(f'Distribution of {col}',fontsize=14,fontweight='bold')
-        plt.ylabel('Frequency',fontsize=10,fontweight='bold')
-        plt.tight_layout()
-        plt.grid(True,alpha=0.3)
-        plt.savefig(f'{plot_dir}/plt_{col}.png',dpi=300)
-        log.info(f'{col} histogram successfully plotted and saved')
-        plt.show()
-        plt.close()
+        try:
+            plt.figure(figsize=(12,7))
+            sns.histplot(data=df, x=col, kde=True, color='indigo', alpha=0.7)
+            plt.title(f'Distribution of {col}',fontsize=14,fontweight='bold')
+            plt.ylabel('Frequency',fontsize=10,fontweight='bold')
+            plt.tight_layout()
+            plt.grid(True,alpha=0.3)
+            plt.savefig(f'{plot_dir}/plt_{col}.png',dpi=300)
+            log.info(f'{col} histogram successfully plotted and saved')
+            plt.show()
+            plt.close()
+        except Exception as e:
+            plt.error(f'Error creating histogram for {col} : {e}')
+            plt.close()
 
 # -----------plot boxplots---------
-def plt_boxplots(df : pd.DataFrame, numeric_cols : list[str]):
-    plt.figure(figsize=(12,7))
+def plt_boxplots(df : pd.DataFrame, numeric_cols : list[str]) -> None:
+    """Generate boxplots for all numeric columns
+    
+    Args:
+        df: DataFrame to plot
+        numeric_cols: List of numeric column names
+    """
     for col in numeric_cols:
-        sns.boxplot(data=df,y=col,linecolor='green',color='indigo')
-        plt.title(f'-Boxplots - {col}')
-        plt.tight_layout()
-        plt.grid(True,alpha=0.3)
-        plt.savefig(f'{plot_dir}/boxplot_{col}.png',dpi=300)
-        log.info(f'{col} boxplot successfully plotted and saved!')
-        plt.show()
-        plt.close()
+        try:
+            plt.figure(figsize=(12,7))
+            sns.boxplot(data=df,y=col,linecolor='green',color='indigo')
+            plt.title(f'-Boxplots - {col}')
+            plt.tight_layout()
+            plt.grid(True,alpha=0.3)
+            plt.savefig(f'{plot_dir}/boxplot_{col}.png',dpi=300)
+            log.info(f'{col} boxplot successfully plotted and saved!')
+            plt.show()
+            plt.close()
+        except Exception as e:
+            log.error(f'Error plotting boxplot for {col} : {e}')
+            plt.close()
 
 # -----business sanity checks------------
 def business_sanity_checks(df: pd.DataFrame):
@@ -231,5 +382,31 @@ def run_eda(filename: str = 'data/retail_store_sales.csv'):
     log.info('EDA run completed successfully!')
     return results
 
+# -------------command line interface------------
+def args_parse():
+    parser = argparse.ArgumentParser(description="Run production-grade EDA pipeline")
+    parser.add_argument("--file", "-f", help="CSV file path to analyze", required=True)
+    parser.add_argument(
+    "--required-cols",
+    "-r",
+    nargs="*",
+    help="List of required columns to validate against",
+    default=None,
+    )
+    return parser.parse_args()
+
 if __name__ == '__main__':
-    run_eda()
+    args = args_parse()
+    try: 
+        eda_result = run_eda(args.file, args.required_cols)
+
+        # export brief overview and missing summary for quick inspection
+        overview_path = logs_dir / 'eda_overview.json'
+        with open(overview_path,'w') as file:
+            json.dump(eda_result.overview, file, indent=4)
+        missing_path = logs_dir / 'missing_summary.csv'
+        eda_result.missing_summary.to_csv(missing_path)
+        log.info(f'Wrote overview to {overview_path} and missing summary to {missing_path}')
+    except Exception as e:
+        log.exception(f'EDA failed: {e}')
+        raise
