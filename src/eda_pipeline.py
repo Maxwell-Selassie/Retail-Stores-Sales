@@ -340,8 +340,70 @@ def plt_boxplots(df : pd.DataFrame, numeric_cols : list[str]) -> None:
             log.error(f'Error plotting boxplot for {col} : {e}')
             plt.close()
 
+
+# ---------cardinality analysis-----------
+def cardinality_analysis(df: pd.DataFrame, categorical_cols : List[str],
+                        threshold : int = 50) -> Dict[str,int]:
+    """Flag high-cardinality categorical columns
+    
+    High cardinality features (many unique values) may need special encoding
+    or could be identifiers rather than true features.
+    
+    Args:
+        df: DataFrame to analyze
+        categorical_cols: List of categorical column names
+        threshold: Number of unique values to flag as high cardinality
+        
+    Returns:
+        Dictionary of high-cardinality columns and their unique counts
+    """
+    high_card_cols = {}
+    for col in categorical_cols:
+        uniques = df[col].nunique()
+        if uniques > threshold:
+            high_card_cols[col] = uniques
+            log.warning(f'{col} has {uniques} unique values - may need special encoding or could be an ID column')
+    if not high_card_cols:
+        log.info(f'No high cardinality columns detected. Threshold = {threshold}')
+    return high_card_cols
+
+#------------constant features detection---------
+def constant_features(df: pd.DataFrame, threshold: 0.95) -> List[str]:
+    """Detect features where one value dominates (quasi-constant)
+    
+    Columns where 95%+ of values are the same provide little information
+    and can often be dropped.
+    
+    Args:
+        df: DataFrame to analyze
+        threshold: Proportion threshold for flagging (default 0.95 = 95%)
+        
+    Returns:
+        List of quasi-constant column names
+    """
+    constants = []
+    for col in df.columns:
+        try:
+            top_freq = df[col].value_counts(normalize=True, dropna=False).iloc[0]
+            if top_freq > threshold:
+                constants.append(col)
+                log.warning(f'{col} is quasi contant - ({top_freq:.1} same value)')
+        except Exception as e:
+            continue
+    if not constants:
+        log.info(f'No quasi constants detected in dataset (Threshold = {threshold})')
+    return constants
+
 # -----business sanity checks------------
-def business_sanity_checks(df: pd.DataFrame):
+def business_sanity_checks(df: pd.DataFrame) -> Dict[str, Any]:
+    """Validate business logic and data consistency
+    
+    Args:
+        df: DataFrame to validate
+        
+    Returns:
+        Dictionary with validation results
+    """
     results = {}
     required = {'Total Spent','Price Per Unit','Quantity'}
     if required.issubset(df.columns):
