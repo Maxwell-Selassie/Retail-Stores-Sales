@@ -5,11 +5,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 import logging
+from dataclasses import dataclass
+import json
+from typing import Dict,Any,List,Optional
 import warnings
 warnings.filterwarnings('ignore')
 
 # logging and filepaths setup
-base_dir = Path(__file__).resolve().parents[1]
+base_dir = Path.cwd().resolve().parents[1]
 logs_dir = base_dir / 'logs'
 plot_dir = base_dir / 'plots'
 
@@ -25,7 +28,18 @@ logging.basicConfig(filename=log_path,
                     format='%(asctime)s - %(levelname)s : %(message)s',
                     datefmt='%H:%M:%S')
 
-# ------------load dataset from a csv file-------------
+# --------Types/dataclass-----------
+@dataclass
+class EDAResults:
+    data : pd.DataFrame
+    overview : Dict[str,Any]
+    missing_summary : pd.DataFrame
+    numeric_columns : List[str]
+    categorical_columns : List[str]
+    duplicates : Optional[pd.DataFrame]
+    outlier_summary : Dict[str,Dict[str,Any]]
+
+# ------------Utility - load dataset from a csv file-------------
 def load_file(filename : str = 'data/retail_store_sales.csv') -> pd.DataFrame:
     '''Loads the csv file into the python environment as a pandas environment'''
     try:
@@ -34,20 +48,33 @@ def load_file(filename : str = 'data/retail_store_sales.csv') -> pd.DataFrame:
         return df
     except FileNotFoundError:
         log.error(f'File not found! Check filepath and try again!')
-        return None
+        raise
+
+# --------------Validation---------------
+def validation_schema(df: pd.DataFrame, required_columns : Optional[List[str]]) -> None:
+    '''Check presence of required columns and basic type expectations
+    Raises a valueError if required columns are missing'''
+    if required_columns is None:
+        return 
+    missing_cols = [c for c in required_columns if c not in df.columns]
+    if missing_cols:
+        log.error(f'Missing required columns : {missing_cols}')
+        raise ValueError(f'Missing required columns : {missing_cols}')
+    log.info('Schema validation passed! All required columns present')
+
+
 
 # ------a short descriptive statistical summary of the dataset----------  
 def summary_overview(df : pd.DataFrame):
     '''A short, descriptive summary of the dataset'''
-    log.info(f'Number of observations : {df.shape[0]}')
-    log.info(f'Number of features : {df.shape[1]}')
-    describe = df.describe(include='all').T[['min','max','mean','std']]
-    log.info(f'\n{describe}')
-    return {
+    describe = df.describe().T[['min','max','mean','std']].round(4)
+    overview = {
         'Observations' : df.shape[0],
         'Features' : df.shape[1],
-        'Description' : describe
+        'Description' : describe.to_dict(orient='index')
     }
+    log.info(f'Overview : observations = {overview['Observations']} | Features = {overview['Features']}')
+    return overview
 
 # -----------numerical columns - their minimum and maximum average values-----------
 def numeric_columns(df : pd.DataFrame):
@@ -97,11 +124,13 @@ def missing_values(df : pd.DataFrame):
 def plt_missing_values(missing_summary : pd.DataFrame):
     if missing_summary['missing_values'].sum() == 0:
         log.info(f'No missing values detected. Skipping plots')
+        return None
     else:
         missing_summary['missing_values'].plot(kind='barh',figsize=(12,7),title='Distribution of missing values',
                 xlabel='Frequency',color='indigo')
-        plt.savefig(plot_dir / 'missing_values.png', dpi=300)
-        log.info('Image successfully saved!')
+        output_path = f'{plot_dir} / missing_values.png'
+        plt.savefig(output_path, dpi=300)
+        log.info(f'Missing values plot successfully plotted and saved to {output_path}')
         plt.show()
 
 # -----------check for duplicates in the dataset--------------
@@ -110,19 +139,25 @@ def duplicate_data(df : pd.DataFrame):
     log.info(f'Number of duplicates : {len(duplicates)}')
     if len(duplicates) == 0:
         log.info('No duplicates found')
+        return None
     else:
         return duplicates
     
 # ---------correlation matrix ------------
 def plt_heatmap(df : pd.DataFrame):
-    plt.figure(figsize=(12,7))
     corr = df.corr(numeric_only=True, method='spearman')
+    if corr.isnull().all().all():
+        log.info(f'Correlation Matrix is empty or contains only NaNs. Skipping heatmap.')
+        return None
+    
+    plt.figure(figsize=(12,7))
     sns.heatmap(data=corr, fmt='.2f', annot=True, cmap='Blues',cbar=False)
-    plt.title('Correlation HeatMap')
+    plt.title('Spearman Correlation HeatMap')
     plt.savefig(plot_dir / 'heatmap.png', dpi = 300)
     plt.tight_layout()
     plt.show()
     log.info(f'Correlation heatmap successfully plotted and saved!')
+    plt.close()
 
 # ----------plot numerical historgrams---------------
 def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]):
@@ -136,6 +171,7 @@ def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]):
         plt.savefig(f'{plot_dir}/plt_{col}.png',dpi=300)
         log.info(f'{col} histogram successfully plotted and saved')
         plt.show()
+        plt.close()
 
 # -----------plot boxplots---------
 def plt_boxplots(df : pd.DataFrame, numeric_cols : list[str]):
@@ -148,10 +184,24 @@ def plt_boxplots(df : pd.DataFrame, numeric_cols : list[str]):
         plt.savefig(f'{plot_dir}/boxplot_{col}.png',dpi=300)
         log.info(f'{col} boxplot successfully plotted and saved!')
         plt.show()
+        plt.close()
+
+# -----business sanity checks------------
+def business_sanity_checks(df: pd.DataFrame):
+    results = {}
+    required = {'Total Spent','Price Per Unit','Quantity'}
+    if required.issubset(df.columns):
+        calc_total = (df['Price Per Unit'] * df['Quantity']).replace([np.inf, -np.inf], np.nan)
+        match_rate = float(np.isclose(calc_total.fillna(-1),df['Total Spent'].fillna(-2).mean())) * 100
+        df['total_spent_match_pct'] = round(match_rate,2)
+        log.info(f"Total Spent matches Price*Quantity for {match_rate:.2f}% of rows")
+    else:
+        log.info("Skipping Total Spent sanity check - required columns not present")
+    return results
 
 # ------main-----
-def run_eda(filename: str = 'data/retail_stores_sales.csv'):
-    df = load_file()
+def run_eda(filename: str = 'data/retail_store_sales.csv'):
+    df = load_file(filename)
     overview = summary_overview(df)
     missing_df = missing_values(df)
     plt_data = plt_missing_values(missing_df)
@@ -159,23 +209,24 @@ def run_eda(filename: str = 'data/retail_stores_sales.csv'):
     cat_cols = categorical_columns(df)
     duplicates = duplicate_data(df)
     outliers = outlier_summary(df, num_cols)
-    correlation = plt_heatmap(df)
     histogram = plt_histogram(df, num_cols)
     boxplot = plt_boxplots(df,num_cols)
+    sanity = business_sanity_checks(df)
 
-    return {
-        'data' : df,
-        'overview' : overview,
-        'missing_df' : missing_df,
-        'plt_data' : plt_data,
-        'num_cols' : num_cols,
-        'cat_cols' : cat_cols,
-        'duplicates' : duplicates,
-        'outliers' : outliers,
-        'correlation' : correlation,
-        'histogram' : histogram,
-        'boxplot' : boxplot
-    }
+    overview['sanity_checks'] = sanity
+
+
+    results = EDAResults(
+        data_ = df,
+        overviews = overview,
+        missing_df = missing_df,
+        num_cols = num_cols,
+        cat_cols = cat_cols,
+        duplicate = duplicates,
+        outliers = outliers
+        )
+    log.info('EDA run completed successfully!')
+    return results
 
 if __name__ == '__main__':
     results = run_eda()
