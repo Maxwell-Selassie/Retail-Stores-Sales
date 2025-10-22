@@ -12,13 +12,14 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # logging and filepaths setup
-base_dir = Path.cwd().resolve().parents[1]
-logs_dir = base_dir / 'logs'
-plot_dir = base_dir / 'plots'
+base_dir = Path.cwd()
 
 Path('logs').mkdir(exist_ok=True)
 Path('data').mkdir(exist_ok=True)
 Path('plots').mkdir(exist_ok=True)
+
+logs_dir = base_dir / 'logs'
+plot_dir = base_dir / 'plots'
 
 log_path = logs_dir / 'Exploratory_data_analysis.log'
 
@@ -73,7 +74,9 @@ def summary_overview(df : pd.DataFrame):
         'Features' : df.shape[1],
         'Description' : describe.to_dict(orient='index')
     }
-    log.info(f'Overview : observations = {overview['Observations']} | Features = {overview['Features']}')
+    observations = overview['Observations']
+    features = overview['Features']
+    log.info(f'Overview : observations = {observations} | Features = {features}')
     return overview
 
 # -----------numerical columns - their minimum and maximum average values-----------
@@ -128,7 +131,7 @@ def plt_missing_values(missing_summary : pd.DataFrame):
     else:
         missing_summary['missing_values'].plot(kind='barh',figsize=(12,7),title='Distribution of missing values',
                 xlabel='Frequency',color='indigo')
-        output_path = f'{plot_dir} / missing_values.png'
+        output_path = f'{plot_dir}_missing_values.png'
         plt.savefig(output_path, dpi=300)
         log.info(f'Missing values plot successfully plotted and saved to {output_path}')
         plt.show()
@@ -192,7 +195,7 @@ def business_sanity_checks(df: pd.DataFrame):
     required = {'Total Spent','Price Per Unit','Quantity'}
     if required.issubset(df.columns):
         calc_total = (df['Price Per Unit'] * df['Quantity']).replace([np.inf, -np.inf], np.nan)
-        match_rate = float(np.isclose(calc_total.fillna(-1),df['Total Spent'].fillna(-2).mean())) * 100
+        match_rate = float(np.isclose(calc_total.fillna(-1), df["Total Spent"].fillna(-2)).mean()) * 100
         df['total_spent_match_pct'] = round(match_rate,2)
         log.info(f"Total Spent matches Price*Quantity for {match_rate:.2f}% of rows")
     else:
@@ -217,17 +220,16 @@ def run_eda(filename: str = 'data/retail_store_sales.csv'):
 
 
     results = EDAResults(
-        data_ = df,
-        overviews = overview,
-        missing_df = missing_df,
-        num_cols = num_cols,
-        cat_cols = cat_cols,
-        duplicate = duplicates,
-        outliers = outliers
+        data= df,
+        overview = overview,
+        missing_summary = missing_df,
+        numeric_columns = num_cols,
+        categorical_columns = cat_cols,
+        duplicates = duplicates,
+        outlier_summary = outliers
         )
     log.info('EDA run completed successfully!')
     return results
 
 if __name__ == '__main__':
-    results = run_eda()
-    df = results['data']
+    run_eda()
