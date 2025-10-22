@@ -141,7 +141,7 @@ def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]):
 def plt_boxplots(df : pd.DataFrame, numeric_cols : list[str]):
     plt.figure(figsize=(12,7))
     for col in numeric_cols:
-        sns.boxplot(data=df,y=col,linecolor='blue',color='indigo',alpha=0.8)
+        sns.boxplot(data=df,y=col,linecolor='green',color='indigo')
         plt.title(f'-Boxplots - {col}')
         plt.tight_layout()
         plt.grid(True,alpha=0.3)
