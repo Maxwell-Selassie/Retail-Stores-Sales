@@ -271,12 +271,12 @@ def plt_heatmap(df : pd.DataFrame) -> None:
     Args:
         df: DataFrame to analyze
     """
-    corr = df.corr(numeric_only=True, method='spearman')
 
-    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    numeric_columns = df.select_dtypes(include=[np.number])
     if numeric_columns.shape[1] < 2:
         log.info('Less than 2 numeric columns. Skipping heatmap')
 
+    corr = df.corr(numeric_only=True, method='spearman')
     if corr.isnull().all().all():
         log.info(f'Correlation Matrix is empty or contains only NaNs. Skipping heatmap.')
         return None
@@ -444,6 +444,9 @@ def run_eda(filename: str = 'data/retail_store_sales.csv', required_cols: Option
     num_cols = numeric_columns(df)
     cat_cols = categorical_columns(df)
 
+    # heatmap visualization
+    plt_heatmap(df)
+
     # data quality checks
     duplicates = duplicate_data(df)
     outliers = outlier_summary(df, num_cols)
@@ -452,7 +455,6 @@ def run_eda(filename: str = 'data/retail_store_sales.csv', required_cols: Option
     sanity = business_sanity_checks(df)
 
     # visualizations
-    plt_heatmap(df)
     plt_histogram(df, num_cols)
     plt_boxplots(df,num_cols)
 
