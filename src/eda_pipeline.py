@@ -416,20 +416,53 @@ def business_sanity_checks(df: pd.DataFrame) -> Dict[str, Any]:
     return results
 
 # ------main-----
-def run_eda(filename: str = 'data/retail_store_sales.csv'):
+def run_eda(filename: str = 'data/retail_store_sales.csv', required_cols: Optional[List[str]] = None) -> EDAResults:
+    '''Execute the complete EDA pipeline
+    
+    Args:
+        filename : filename of csv file to analyze
+        required_cols : optional list of columns that must be present in the dataset
+        
+    Returns:
+        EDAResults dataclass containing all analysis results
+    '''
+    log.info('='*50)
+    log.info('Starting EDA pipeline')
+    log.info('='*50)
+    # load and validate 
     df = load_file(filename)
+    validate = validation_schema(df, required_cols)
+
+    # basic overview
     overview = summary_overview(df)
+
+    # missing values analysis
     missing_df = missing_values(df)
     plt_data = plt_missing_values(missing_df)
+
+    # column type identification
     num_cols = numeric_columns(df)
     cat_cols = categorical_columns(df)
+
+    # data quality checks
     duplicates = duplicate_data(df)
     outliers = outlier_summary(df, num_cols)
-    histogram = plt_histogram(df, num_cols)
-    boxplot = plt_boxplots(df,num_cols)
+    high_card = cardinality_analysis(df, cat_cols)
+    constants = constant_features(df)
     sanity = business_sanity_checks(df)
 
+    # visualizations
+    plt_heatmap(df)
+    plt_histogram(df, num_cols)
+    plt_boxplots(df,num_cols)
+
+
     overview['sanity_checks'] = sanity
+    overview['data_quality'] = {
+        'duplicate_rows' : duplicates.shape[0] if duplicates is not None else 0,
+        'high_card_cols' : list(high_card.keys()),
+        'quasi_constant_cols' : constants
+    }
 
 
     results = EDAResults(
@@ -439,14 +472,25 @@ def run_eda(filename: str = 'data/retail_store_sales.csv'):
         numeric_columns = num_cols,
         categorical_columns = cat_cols,
         duplicates = duplicates,
-        outlier_summary = outliers
+        outlier_summary = outliers,
+        cardinality_analysis= high_card,
+        constant_features=constants,
+        sanity_checks=sanity
         )
+    log.info('='*50)
     log.info('EDA run completed successfully!')
+    log.info('='*50)
     return results
 
 # -------------command line interface------------
 def args_parse():
-    parser = argparse.ArgumentParser(description="Run production-grade EDA pipeline")
+    '''Parse command line arguments'''
+    parser = argparse.ArgumentParser(description="Run production-grade EDA pipeline on retail stores sales",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog= """Examples:
+                python eda.py --file data/sales.csv
+                python eda.py -f data/sales.csv --required-cols "Total Spent" "Quantity"
+            """)
     parser.add_argument("--file", "-f", help="CSV file path to analyze", required=True)
     parser.add_argument(
     "--required-cols",
@@ -466,9 +510,24 @@ if __name__ == '__main__':
         overview_path = logs_dir / 'eda_overview.json'
         with open(overview_path,'w') as file:
             json.dump(eda_result.overview, file, indent=4)
-        missing_path = logs_dir / 'missing_summary.csv'
-        eda_result.missing_summary.to_csv(missing_path)
-        log.info(f'Wrote overview to {overview_path} and missing summary to {missing_path}')
+
+        if not eda_result.missing_summary.empty:
+            missing_path = logs_dir / 'missing_summary.csv'
+            eda_result.missing_summary.to_csv(missing_path)
+            log.info(f'Wrote overview to {overview_path} and missing summary to {missing_path}')
+
+        # export outlier summary
+        outlier_path = logs_dir / 'outlier_summary.json'
+        with open(outlier_path, 'w') as file:
+            json.dump(eda_result.outlier_summary,file, indent=4)
+
+        log.info(f'Exported results to {logs_dir}')
+        print(f"\n✅ EDA completed successfully!")
+        print(f"📊 Results saved to: {logs_dir}")
+        print(f"📈 Plots saved to: {plot_dir}")
+        
     except Exception as e:
         log.exception(f'EDA failed: {e}')
+        print(f"\n❌ EDA failed: {e}")
+        print(f"Check log file for details: {log_path}")
         raise
