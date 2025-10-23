@@ -5,6 +5,7 @@ import logging
 import json
 from typing import Optional, Any, List, Dict
 import yaml
+from logging.handlers import TimedRotatingFileHandler
 
 # logging and filepaths setup
 base_dir = Path.cwd()
@@ -35,10 +36,18 @@ def setup_logger(name: str, log_file: str, level = logging.INFO):
     logger = logging.getLogger(name)
     if not logger.handlers:
         formatter = logging.Formatter('%(asctime)s - %(levelname)s : %(message)s',datefmt='%H:%M:%S')
-        file_handler = logging.FileHandler(log_file)
+        file_handler = TimedRotatingFileHandler(
+            filename= log_file,
+            when='midnight',
+            interval=1,
+            backupCount=7
+        )
+        file_handler.suffix = '%Y%m%d'
         file_handler.setFormatter(formatter)
+
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
+        
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
         logger.setLevel(level)
