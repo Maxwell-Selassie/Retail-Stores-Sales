@@ -14,6 +14,7 @@ from typing import Dict,Any,List,Optional
 import warnings
 import argparse
 warnings.filterwarnings('ignore')
+from utils import setup_logger,load_file
 
 # logging and filepaths setup
 base_dir = Path.cwd()
@@ -27,11 +28,7 @@ plot_dir = base_dir / 'plots'
 
 log_path = logs_dir / 'Exploratory_data_analysis.log'
 
-log = logging.getLogger('EDA')
-logging.basicConfig(filename=log_path,
-                    level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s : %(message)s',
-                    datefmt='%H:%M:%S')
+log = setup_logger(name='Exploratory_data_analysis',log_file=log_path, level=logging.INFO)
 
 # --------Types/dataclass-----------
 @dataclass
@@ -60,29 +57,6 @@ class EDAResults:
     cardinality_analysis : Dict[str,int]
     constant_features : List[str]
     sanity_checks : Dict[str,Any]
-
-# ------------Utility - load dataset from a csv file-------------
-def load_file(filename : str = 'data/retail_store_sales.csv') -> pd.DataFrame:
-    """Loads the csv file into the python environment as a pandas DataFrame
-    
-    Args:
-        filename: Path to the CSV file
-        
-    Returns:
-        pd.DataFrame: Loaded data
-        
-    Raises:
-        FileNotFoundError: If the file doesn't exist
-    """
-    try:
-        df = pd.read_csv(filename)
-        log.info(f'Data successfully loaded from {filename} | Shape : {df.shape}')
-        return df
-    except FileNotFoundError:
-        log.error(f'File not found! Check filepath and try again!')
-        raise
-    except Exception as e:
-        log.error(f'Error loading file : {e}')
 
 # --------------Validation---------------
 def validation_schema(df: pd.DataFrame, required_columns : Optional[List[str]]) -> None:
