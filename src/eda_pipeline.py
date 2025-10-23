@@ -368,7 +368,7 @@ def cardinality_analysis(df: pd.DataFrame, categorical_cols : List[str],
     return high_card_cols
 
 #------------constant features detection---------
-def constant_features(df: pd.DataFrame, threshold: 0.95) -> List[str]:
+def constant_features(df: pd.DataFrame, threshold: int = 0.95) -> List[str]:
     """Detect features where one value dominates (quasi-constant)
     
     Columns where 95%+ of values are the same provide little information
