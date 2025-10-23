@@ -27,7 +27,7 @@ plot_dir = base_dir / 'plots'
 
 log_path = logs_dir / 'Exploratory_data_analysis.log'
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('EDA')
 logging.basicConfig(filename=log_path,
                     level=logging.INFO,
                     format='%(asctime)s - %(levelname)s : %(message)s',
@@ -314,7 +314,7 @@ def plt_histogram(df : pd.DataFrame, numeric_cols: list[str]) -> None:
             plt.show()
             plt.close()
         except Exception as e:
-            plt.error(f'Error creating histogram for {col} : {e}')
+            log.error(f'Error creating histogram for {col} : {e}')
             plt.close()
 
 # -----------plot boxplots---------
