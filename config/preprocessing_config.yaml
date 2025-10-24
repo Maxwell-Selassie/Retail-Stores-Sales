@@ -55,7 +55,7 @@ missing_values: # strategy per column based on EDA findings
       eda_evidence: 'missing_summary.csv shows 4.8% missing data.
                     Histogram plot shows feature has no skewness and does not follow a normal distribution'
       
-    Total_spent: 
+    Total Spent: 
       method: 'calculated'
       reason: 'Can be derived from Price Per Unit * Quantity'
       eda_evidence: 'business_sanity_checks shows over 90% matches'

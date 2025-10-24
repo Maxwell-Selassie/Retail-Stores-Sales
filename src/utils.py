@@ -72,7 +72,7 @@ log_path = logs_dir / 'utils.log'
 log = setup_logger(name='Utility', log_file=log_path, level=logging.INFO)
 
 # ----------load data from a csv file------------
-def load_file(filename : str) -> pd.DataFrame:
+def load_csv_file(filename : str) -> pd.DataFrame:
     """Loads the csv file into the python environment as a pandas DataFrame
     
     Args:
