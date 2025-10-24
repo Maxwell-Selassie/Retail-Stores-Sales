@@ -42,11 +42,56 @@ columns_to_drop:
 # =====================================
 missing values: # strategy per column based on EDA findings
   numeric: # numeric columns
+
+    Price Per Unit: 
+      method: 'mean'
+      reason: 'Only 4.84% missing. No outliers from boxplot, thus mean imputation'
+      eda_evidence: 'missing_summary.csv shows 4.84% missing data. 
+                  Histogram plot shows feature has no skewness and does not follow a normal distribution'
+
+    Quantity: 
+      method: 'mean'
+      reason: 'Only 4.8% missing. No outliers from boxplot, hence, mean imputation'
+      eda_evidence: 'missing_summary.csv shows 4.8% missing data.
+                    Histogram plot shows feature has no skewness and does not follow a normal distribution'
+      
+    Total_spent: 
+      method: 'calculated'
+      reason: 'Can be derived from Price Per Unit * Quantity'
+      eda_evidence: 'business_sanity_checks shows over 90% matches'
+
+  categorical: # categorical columns
     Discount Applied:
       method: 'replace NaN with "not specified"'
       reason: 'The discount applied columns has 3 values (True, False, NaN). Replace with "Not Specified" and then one-hot encode'
-      eda_evidence: 'missing_summary.csv shows 33.39, categorical columns show discount applied column has only two unique values
-                    excluding NaN'
-    
+      eda_evidence: 'missing_summary.csv shows 33.39% missing data, categorical columns show discount applied 
+                    column has only two unique values excluding NaN'
+
     Item:
-      method: ''
+      method: 'calculated'
+      reason: 'Can be derived from the "Category" column'
+      eda_evidence: 'summary_overview shows missing values from Item column can be computed from Category column'
+
+# Threshold for dropping columns 
+column_drop_threshold: 0.7  # drop columns with 70% missing data
+
+# ================================
+# OUTLIER HANDLING
+# ===============================
+
+# based on IQR analysis from EDA
+outliers:
+  method: 'IQR'
+
+# per-column strategies
+  columns: 
+    Total Spent: 
+      action: 'none'
+      reason: '48% outlier detected! All those outlier data values had just one unique value, hence, the decision to not make changes'
+      eda_evidence: "outlier_summary.json shows 48% outliers. All have a value of 410 which isn't far from the upper range of 403.5"
+
+iqr_multiplier: 1.5
+
+# ===============================
+# DATA QUALITY FIXES
+# =================================
