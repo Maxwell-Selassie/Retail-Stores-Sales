@@ -95,3 +95,101 @@ iqr_multiplier: 1.5
 # ===============================
 # DATA QUALITY FIXES
 # =================================
+data_quality: 
+# remove duplicate rows
+  Total Spent:
+    action: 'recalculate'
+    reason: 'Should always be Price Per Unit * Quantity'
+    eda_evidence: 'Business sanity checks shows about 10% mismatches'
+
+  recalculate_columns:
+    Total Spent:
+      formula: 'Price Per Unit * Quantity'
+      reason: Ensure consistency with business logic
+      override_existing: false # only fill if missing or failed sanity checks
+
+# ===========================================
+# FEATURE ENCODING
+# ==========================================
+encoding:
+  # one hot encoding (for low cardinality columns)  
+  one_hot:
+    - column: 'Category'
+      max_categories: 10 # if more, use target encoding instead
+      drop_first: True 
+      reason: '8 categories, no ordinal relationships'
+      eda_evidence: 'categorical columns showed 8 unique values'
+
+    - column: 'Payment Method'
+      max_categories: 10
+      drop_first: True
+      reason: '3 categories, no ordinal relationships'
+      eda_evidence: 'categorical columns showed 3 unique values'
+
+    - column : 'Location'
+      max_categories: 10
+      drop_first: True
+      reason: '2 categories, no ordinal relationships'
+      eda_evidence: 'categorical columns showed 2 unique values'
+
+    - column: 'Discount Applied'
+      max_categories: 10
+      drop_first: True
+      reason: '3 categories, after handling missing values'
+      eda_evidence: 'categorical columns showed 2 unique values'
+
+  # target encoding for high cardinality features 
+  target:
+    - column: 'Customer ID'
+      smoothing: 1.0
+      reason: '25 unique customer IDs. Target encoding captures customer performance'
+      eda_evidence: 'categorical columns showed 25 unique values'
+
+    - column: 'Item'
+      smoothing: 1.0
+      reason: '200 unique Items. Target encoding captures item performances'
+      eda_evidence: 'categorical columns showed 200 unique values'
+
+# ================================
+# FEATURE SCALING
+# =================================
+scaling:
+  method: 'standard'
+# columns to scale
+
+  columns:
+    - 'Price Per Unit'
+    - 'Quantity'
+    - 'Total Spent'
+
+  exclude:
+    - 'Is_weekend'
+
+  reason: "standard scaling for linear models. Tree-based models don't need scaling"
+  fit_on: 'train'
+
+# ================================
+# DATETIME FEATURES
+# ===================================
+datetime:
+  date_column:
+    - 'Transaction Date' 
+
+  date_format:
+    - '%Y-%m-%d'
+
+  extract_features:
+    - 'year'
+    - 'month'
+    - 'day'
+    - 'day_of_week'
+    - 'quarter'
+    - 'Is_weekend'
+    - 'Is_month_start'
+    - 'Is_month_end'
+
+  drop_column: True # drop original column after extraction
+
+  reason: 'To analyze temporal patterns in retail sales'
+
+
