@@ -1,0 +1,52 @@
+# ==========================================
+# PREPROCESSING CONFIGURATION
+# =========================================
+# This file documents all preprocessing decisions based on EDA findings
+# Every decision here is justified by EDA analysis
+#
+# Author : Maxwell Selassie Hiamatsu
+# Date : 24th October, 2025
+# Dataset : Retail store sales
+# EDA Version : 1.0
+# ==============================================
+
+# -----------------------------------------
+# PROJECT METADATA
+# =======================================
+
+project:
+  name: 'Retail store sales'
+  version: '1.0.0'
+  description: 'E-commerce Retail sales data preprocessing pipeline'
+
+# =======================================
+# FILE PATHS
+# ===========================================
+paths:
+  raw_data: 'data/raw/retail_store_sales.csv'
+  processed_data: 'data/processed/retail_cleaned.csv'
+  preprocessing_metadata: 'logs/preprocessing_metadata.json'
+  scaler_path: 'models/scaler.pkl'
+  encoder_path: 'models/encoder.pkl'
+
+# ==================================
+# COLUMNS TO DROP
+# =================================
+columns_to_drop:
+  - column: 'Transaction ID'
+    reason: High cardinality identifier (12,575 unique values). Not predictive.
+    eda_evidence: cardinality analysis showed 12,575 unique values
+
+# ====================================
+# MISSING VALUES HANDLING
+# =====================================
+missing values: # strategy per column based on EDA findings
+  numeric: # numeric columns
+    Discount Applied:
+      method: 'replace NaN with "not specified"'
+      reason: 'The discount applied columns has 3 values (True, False, NaN). Replace with "Not Specified" and then one-hot encode'
+      eda_evidence: 'missing_summary.csv shows 33.39, categorical columns show discount applied column has only two unique values
+                    excluding NaN'
+    
+    Item:
+      method: ''
