@@ -192,4 +192,34 @@ datetime:
 
   reason: 'To analyze temporal patterns in retail sales'
 
+# =============================================
+# LOGGING & MONITORING
+# =============================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  save_transformations: true
+  log_file: "logs/preprocessing.log"
+  
+  # Track statistics before/after each step
+  track_statistics:
+    - "shape"
+    - "missing_values"
+    - "memory_usage"
+    - "numeric_distributions"
 
+# ========================================
+# NOTE AND ASSUMPTIONS
+# ===========================================
+notes:
+  assumptions:
+    - 'Missing values are Missing At Random'
+    - 'Outliers are not extreme values' 
+    - 'Transaction Date represent transaction time, not delivery time'
+
+  limitations:
+    - 'Customer demographics is only limited to "in-store and online"'
+  
+  future_improvements:
+    - 'Add seasonality indicators'
+    - 'Add customer demographics'
+    
