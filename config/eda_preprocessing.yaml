@@ -40,7 +40,7 @@ columns_to_drop:
 # ====================================
 # MISSING VALUES HANDLING
 # =====================================
-missing values: # strategy per column based on EDA findings
+missing_values: # strategy per column based on EDA findings
   numeric: # numeric columns
 
     Price Per Unit: 
@@ -222,4 +222,4 @@ notes:
   future_improvements:
     - 'Add seasonality indicators'
     - 'Add customer demographics'
-    
+
